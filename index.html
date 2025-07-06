@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>가족 여행 사진첩</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="app">
+        <header class="header">
+            <div class="header-content">
+                <h1><i class="fas fa-camera"></i> 가족 여행 사진첩</h1>
+                <p class="subtitle">소중한 추억을 담아보세요</p>
+            </div>
+        </header>
+
+        <main class="main">
+            <div class="upload-section">
+                <div class="upload-card">
+                    <form id="uploadForm" class="upload-form">
+                        <div class="file-input-wrapper">
+                            <input type="file" id="photoInput" accept="image/*" multiple />
+                            <label for="photoInput" class="file-label">
+                                <i class="fas fa-cloud-upload-alt"></i>
+                                <span>사진을 선택하세요</span>
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <textarea id="descInput" placeholder="사진에 대한 설명을 입력하세요..." maxlength="200"></textarea>
+                            <div class="char-count">
+                                <span id="charCount">0</span>/200
+                            </div>
+                        </div>
+                        <button type="submit" class="upload-btn">
+                            <i class="fas fa-plus"></i>
+                            사진 올리기
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="gallery-section">
+                <div class="gallery-header">
+                    <h2>사진 갤러리</h2>
+                    <div class="gallery-stats">
+                        <span id="photoCount">0</span>개의 사진
+                    </div>
+                </div>
+                <div id="gallery" class="gallery"></div>
+            </div>
+        </main>
+    </div>
+
+    <!-- 모달 -->
+    <div id="modal" class="modal">
+        <div class="modal-overlay"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modalTitle">사진 보기</h3>
+                <button id="closeModal" class="close-btn">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <img id="modalImg" src="" alt="크게 보기" />
+                <p id="modalDesc" class="modal-description"></p>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        :root {
+            --primary: #667eea;
+            --primary-dark: #5a6fd8;
+            --secondary: #764ba2;
+            --accent: #f093fb;
+            --success: #4facfe;
+            --danger: #ff6b6b;
+            --warning: #ffd93d;
+            --text-primary: #2d3748;
+            --text-secondary: #718096;
+            --bg-primary: #f7fafc;
+            --bg-secondary: #ffffff;
+            --border: #e2e8f0;
+            --shadow-sm: 0 1px 3px rgba(0,0,0,0.12);
+            --shadow-md: 0 4px 6px rgba(0,0,0,0.1);
+            --shadow-lg: 0 10px 25px rgba(0,0,0,0.1);
+            --radius: 12px;
+            --radius-lg: 16px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            min-height: 100vh;
+            color: var(--text-primary);
+        }
+
+        .app {
+            min-height: 100vh;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 2rem 0;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .header-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 2rem;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 0.5rem;
+        }
+
+        .header h1 i {
+            margin-right: 0.5rem;
+            color: var(--accent);
+        }
+
+        .subtitle {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+            font-weight: 300;
+        }
+
+        .main {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .upload-section {
+            margin-bottom: 3rem;
+        }
+
+        .upload-card {
+            background: var(--bg-secondary);
+            border-radius: var(--radius-lg);
+            padding: 2rem;
+            box-shadow: var(--shadow-lg);
+            border: 1px solid var(--border);
+        }
+
+        .upload-form {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .file-input-wrapper {
+            position: relative;
+        }
+
+        .file-input-wrapper input[type="file"] {
+            position: absolute;
+            opacity: 0;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+        }
+
+        .file-label {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 3rem 2rem;
+            border: 2px dashed var(--border);
+            border-radius: var(--radius);
+            background: var(--bg-primary);
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .file-label:hover {
+            border-color: var(--primary);
+            background: rgba(102, 126, 234, 0.05);
+        }
+
+        .file-label i {
+            font-size: 3rem;
+            color: var(--primary);
+            margin-bottom: 1rem;
+        }
+
+        .file-label span {
+            font-size: 1.1rem;
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
+        .form-group {
+            position: relative;
+        }
+
+        .form-group textarea {
+            width: 100%;
+            min-height: 100px;
+            padding: 1rem;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            font-family: inherit;
+            font-size: 1rem;
+            resize: vertical;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-group textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .char-count {
+            position: absolute;
+            bottom: 0.5rem;
+            right: 1rem;
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+        }
+
+        .upload-btn {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            color: white;
+            border: none;
+            border-radius: var(--radius);
+            padding: 1rem 2rem;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .upload-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .upload-btn:active {
+            transform: translateY(0);
+        }
+
+        .gallery-section {
+            background: var(--bg-secondary);
+            border-radius: var(--radius-lg);
+            padding: 2rem;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .gallery-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .gallery-header h2 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .gallery-stats {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .gallery {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .photo-card {
+            background: var(--bg-secondary);
+            border-radius: var(--radius);
+            overflow: hidden;
+            box-shadow: var(--shadow-md);
+            transition: all 0.3s ease;
+            border: 1px solid var(--border);
+        }
+
+        .photo-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .photo-image {
+            position: relative;
+            width: 100%;
+            height: 200px;
+            overflow: hidden;
+        }
+
+        .photo-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            cursor: pointer;
+            transition: transform 0.3s ease;
+        }
+
+        .photo-card:hover .photo-image img {
+            transform: scale(1.05);
+        }
+
+        .delete-btn {
+            position: absolute;
+            top: 0.75rem;
+            right: 0.75rem;
+            background: rgba(255, 107, 107, 0.9);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 36px;
+            height: 36px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+
+        .delete-btn:hover {
+            background: var(--danger);
+            transform: scale(1.1);
+        }
+
+        .photo-content {
+            padding: 1.5rem;
+        }
+
+        .photo-description {
+            color: var(--text-primary);
+            font-size: 0.95rem;
+            line-height: 1.5;
+            margin-bottom: 1rem;
+        }
+
+        .photo-date {
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            font-weight: 300;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 4rem 2rem;
+            color: var(--text-secondary);
+        }
+
+        .empty-state i {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+
+        .empty-state h3 {
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+            color: var(--text-primary);
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 1000;
+        }
+
+        .modal.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(5px);
+        }
+
+        .modal-content {
+            position: relative;
+            background: var(--bg-secondary);
+            border-radius: var(--radius-lg);
+            max-width: 90vw;
+            max-height: 90vh;
+            overflow: hidden;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .modal-header h3 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            color: var(--text-secondary);
+            cursor: pointer;
+            padding: 0.5rem;
+            border-radius: 50%;
+            transition: all 0.3s ease;
+        }
+
+        .close-btn:hover {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+        }
+
+        .modal-body {
+            padding: 1.5rem;
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+
+        .modal-body img {
+            width: 100%;
+            max-height: 60vh;
+            object-fit: contain;
+            border-radius: var(--radius);
+            margin-bottom: 1rem;
+        }
+
+        .modal-description {
+            color: var(--text-primary);
+            font-size: 1rem;
+            line-height: 1.6;
+            margin-bottom: 1rem;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2rem;
+            }
+
+            .main {
+                padding: 1rem;
+            }
+
+            .upload-card {
+                padding: 1.5rem;
+            }
+
+            .gallery {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+            }
+
+            .gallery-header {
+                flex-direction: column;
+                gap: 0.5rem;
+                align-items: flex-start;
+            }
+
+            .modal-content {
+                margin: 1rem;
+                max-width: calc(100vw - 2rem);
+            }
+        }
+
+        @media (max-width: 480px) {
+            .header {
+                padding: 1.5rem 0;
+            }
+
+            .header h1 {
+                font-size: 1.75rem;
+            }
+
+            .upload-card {
+                padding: 1rem;
+            }
+
+            .file-label {
+                padding: 2rem 1rem;
+            }
+
+            .file-label i {
+                font-size: 2.5rem;
+            }
+        }
+    </style>
+
+    <script>
+        class PhotoGallery {
+            constructor() {
+                this.photos = [];
+                this.API_BASE = '/api';
+                this.init();
+            }
+
+            async init() {
+                this.bindEvents();
+                await this.loadPhotos();
+                this.renderGallery();
+                this.updateStats();
+            }
+
+            bindEvents() {
+                const uploadForm = document.getElementById('uploadForm');
+                const photoInput = document.getElementById('photoInput');
+                const descInput = document.getElementById('descInput');
+                const closeModal = document.getElementById('closeModal');
+                const modal = document.getElementById('modal');
+
+                uploadForm.addEventListener('submit', (e) => this.handleUpload(e));
+                photoInput.addEventListener('change', () => this.handleFileSelect());
+                descInput.addEventListener('input', () => this.updateCharCount());
+                closeModal.addEventListener('click', () => this.closeModal());
+                modal.addEventListener('click', (e) => {
+                    if (e.target === modal || e.target.classList.contains('modal-overlay')) {
+                        this.closeModal();
+                    }
+                });
+
+                // 드래그 앤 드롭
+                const fileLabel = document.querySelector('.file-label');
+                fileLabel.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    fileLabel.style.borderColor = '#667eea';
+                    fileLabel.style.background = 'rgba(102, 126, 234, 0.05)';
+                });
+
+                fileLabel.addEventListener('dragleave', (e) => {
+                    e.preventDefault();
+                    fileLabel.style.borderColor = '#e2e8f0';
+                    fileLabel.style.background = '#f7fafc';
+                });
+
+                fileLabel.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    fileLabel.style.borderColor = '#e2e8f0';
+                    fileLabel.style.background = '#f7fafc';
+                    
+                    const files = Array.from(e.dataTransfer.files).filter(file => file.type.startsWith('image/'));
+                    if (files.length > 0) {
+                        photoInput.files = e.dataTransfer.files;
+                        this.handleFileSelect();
+                    }
+                });
+            }
+
+            async loadPhotos() {
+                try {
+                    const response = await fetch(`${this.API_BASE}/get-photos`);
+                    if (response.ok) {
+                        this.photos = await response.json();
+                    } else {
+                        console.error('사진 로드 실패:', response.status);
+                        this.showNotification('사진을 불러오는데 실패했습니다', 'error');
+                    }
+                } catch (error) {
+                    console.error('서버 연결 실패:', error);
+                    this.showNotification('서버에 연결할 수 없습니다. 로컬 모드로 전환합니다.', 'warning');
+                    // 로컬 스토리지에서 백업 로드
+                    this.photos = JSON.parse(localStorage.getItem('photos') || '[]');
+                }
+            }
+
+            handleFileSelect() {
+                const photoInput = document.getElementById('photoInput');
+                const fileLabel = document.querySelector('.file-label span');
+                
+                if (photoInput.files.length > 0) {
+                    const fileNames = Array.from(photoInput.files).map(file => file.name).join(', ');
+                    fileLabel.textContent = `${photoInput.files.length}개 파일 선택됨`;
+                } else {
+                    fileLabel.textContent = '사진을 선택하세요';
+                }
+            }
+
+            updateCharCount() {
+                const descInput = document.getElementById('descInput');
+                const charCount = document.getElementById('charCount');
+                charCount.textContent = descInput.value.length;
+            }
+
+            async handleUpload(e) {
+                e.preventDefault();
+                
+                const photoInput = document.getElementById('photoInput');
+                const descInput = document.getElementById('descInput');
+                
+                if (!photoInput.files.length) {
+                    this.showNotification('사진을 선택해주세요', 'warning');
+                    return;
+                }
+
+                const files = Array.from(photoInput.files);
+                const description = descInput.value.trim();
+
+                for (const file of files) {
+                    if (!file.type.startsWith('image/')) continue;
+
+                    try {
+                        // 파일을 Base64로 변환
+                        const base64 = await this.fileToBase64(file);
+                        
+                        const response = await fetch(`${this.API_BASE}/upload-photo`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                photo: base64,
+                                description: description
+                            })
+                        });
+
+                        if (response.ok) {
+                            const photo = await response.json();
+                            this.photos.unshift(photo);
+                        } else {
+                            throw new Error('업로드 실패');
+                        }
+                    } catch (error) {
+                        console.error('사진 업로드 오류:', error);
+                        this.showNotification('사진 업로드 중 오류가 발생했습니다', 'error');
+                    }
+                }
+
+                this.renderGallery();
+                this.updateStats();
+                
+                // 폼 초기화
+                photoInput.value = '';
+                descInput.value = '';
+                this.updateCharCount();
+                document.querySelector('.file-label span').textContent = '사진을 선택하세요';
+                
+                this.showNotification(`${files.length}개의 사진이 업로드되었습니다`, 'success');
+            }
+
+            fileToBase64(file) {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.readAsDataURL(file);
+                    reader.onload = () => resolve(reader.result);
+                    reader.onerror = error => reject(error);
+                });
+            }
+
+            async deletePhoto(id) {
+                if (confirm('정말로 이 사진을 삭제하시겠습니까?')) {
+                    try {
+                        const response = await fetch(`${this.API_BASE}/delete-photo`, {
+                            method: 'DELETE',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({ id })
+                        });
+
+                        if (response.ok) {
+                            this.photos = this.photos.filter(photo => photo.id !== id);
+                            this.renderGallery();
+                            this.updateStats();
+                            this.showNotification('사진이 삭제되었습니다', 'success');
+                        } else {
+                            throw new Error('삭제 실패');
+                        }
+                    } catch (error) {
+                        console.error('삭제 오류:', error);
+                        this.showNotification('사진 삭제 중 오류가 발생했습니다', 'error');
+                    }
+                }
+            }
+
+            openModal(photo) {
+                const modal = document.getElementById('modal');
+                const modalImg = document.getElementById('modalImg');
+                const modalDesc = document.getElementById('modalDesc');
+                const modalTitle = document.getElementById('modalTitle');
+
+                modalImg.src = photo.url;
+                modalDesc.textContent = photo.description || '설명이 없습니다';
+                modalTitle.textContent = photo.filename;
+                
+                modal.classList.add('show');
+                document.body.style.overflow = 'hidden';
+            }
+
+            closeModal() {
+                const modal = document.getElementById('modal');
+                modal.classList.remove('show');
+                document.body.style.overflow = '';
+            }
+
+            renderGallery() {
+                const gallery = document.getElementById('gallery');
+                
+                if (this.photos.length === 0) {
+                    gallery.innerHTML = `
+                        <div class="empty-state">
+                            <i class="fas fa-images"></i>
+                            <h3>아직 사진이 없습니다</h3>
+                            <p>위에서 사진을 업로드해보세요!</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                gallery.innerHTML = this.photos.map(photo => `
+                    <div class="photo-card">
+                        <div class="photo-image">
+                            <img src="${photo.url}" alt="${photo.description || '여행 사진'}" onclick="gallery.openModal(${JSON.stringify(photo).replace(/"/g, '&quot;')})" />
+                            <button class="delete-btn" onclick="gallery.deletePhoto('${photo.id}')" title="삭제">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                        <div class="photo-content">
+                            <div class="photo-description">${photo.description || '설명이 없습니다'}</div>
+                            <div class="photo-date">${new Date(photo.uploaded_at).toLocaleDateString('ko-KR')}</div>
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            updateStats() {
+                const photoCount = document.getElementById('photoCount');
+                photoCount.textContent = this.photos.length;
+            }
+
+            showNotification(message, type = 'info') {
+                console.log(`${type.toUpperCase()}: ${message}`);
+                
+                if (type === 'success') {
+                    alert('✅ ' + message);
+                } else if (type === 'error') {
+                    alert('❌ ' + message);
+                } else if (type === 'warning') {
+                    alert('⚠️ ' + message);
+                }
+            }
+        }
+
+        // 갤러리 초기화
+        const gallery = new PhotoGallery();
+    </script>
+</body>
+</html>
