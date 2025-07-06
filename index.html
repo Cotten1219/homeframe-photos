@@ -523,11 +523,15 @@
         }
     </style>
 
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.38.0/dist/umd/supabase.min.js"></script>
     <script>
+        const SUPABASE_URL = "https://djecykyjfczsruynrveq.supabase.co";
+        const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRqZWN5a3lqZmN6c3J1eW5ydmVxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTE3NzcxNDksImV4cCI6MjA2NzM1MzE0OX0.gVZGwW47GNWyhZ_zDLaQ_Sds1FI5uiY4CJPiEXlzwQQ";
+        const supabase = supabasejs.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
         class PhotoGallery {
             constructor() {
                 this.photos = [];
-                this.API_BASE = '/api';
                 this.init();
             }
 
@@ -583,19 +587,15 @@
             }
 
             async loadPhotos() {
-                try {
-                    const response = await fetch(`${this.API_BASE}/get-photos`);
-                    if (response.ok) {
-                        this.photos = await response.json();
-                    } else {
-                        console.error('사진 로드 실패:', response.status);
-                        this.showNotification('사진을 불러오는데 실패했습니다', 'error');
-                    }
-                } catch (error) {
-                    console.error('서버 연결 실패:', error);
-                    this.showNotification('서버에 연결할 수 없습니다. 로컬 모드로 전환합니다.', 'warning');
-                    // 로컬 스토리지에서 백업 로드
-                    this.photos = JSON.parse(localStorage.getItem('photos') || '[]');
+                const { data, error } = await supabase
+                    .from('photos')
+                    .select('*')
+                    .order('uploaded_at', { ascending: false });
+                if (error) {
+                    this.showNotification('사진을 불러오는데 실패했습니다', 'error');
+                    this.photos = [];
+                } else {
+                    this.photos = data;
                 }
             }
 
@@ -635,26 +635,36 @@
                     if (!file.type.startsWith('image/')) continue;
 
                     try {
-                        // 파일을 Base64로 변환
-                        const base64 = await this.fileToBase64(file);
-                        
-                        const response = await fetch(`${this.API_BASE}/upload-photo`, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                            },
-                            body: JSON.stringify({
-                                photo: base64,
-                                description: description
-                            })
-                        });
+                        // 파일을 Supabase Storage에 업로드
+                        const fileName = `photos/${Date.now()}-${Math.random().toString(36).substr(2, 9)}.${file.name.split('.').pop()}`;
+                        const { data: uploadData, error: uploadError } = await supabase.storage
+                            .from('photos')
+                            .upload(fileName, file, {
+                                contentType: file.type,
+                                upsert: false
+                            });
+                        if (uploadError) throw uploadError;
 
-                        if (response.ok) {
-                            const photo = await response.json();
-                            this.photos.unshift(photo);
-                        } else {
-                            throw new Error('업로드 실패');
-                        }
+                        // 공개 URL 생성
+                        const { data: { publicUrl } } = supabase.storage
+                            .from('photos')
+                            .getPublicUrl(fileName);
+
+                        // DB에 메타데이터 저장
+                        const { data: dbData, error: dbError } = await supabase
+                            .from('photos')
+                            .insert([
+                                {
+                                    filename: fileName,
+                                    url: publicUrl,
+                                    description: description,
+                                    uploaded_at: new Date().toISOString()
+                                }
+                            ])
+                            .select();
+                        if (dbError) throw dbError;
+
+                        this.photos.unshift(dbData[0]);
                     } catch (error) {
                         console.error('사진 업로드 오류:', error);
                         this.showNotification('사진 업로드 중 오류가 발생했습니다', 'error');
@@ -673,34 +683,34 @@
                 this.showNotification(`${files.length}개의 사진이 업로드되었습니다`, 'success');
             }
 
-            fileToBase64(file) {
-                return new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.readAsDataURL(file);
-                    reader.onload = () => resolve(reader.result);
-                    reader.onerror = error => reject(error);
-                });
-            }
-
             async deletePhoto(id) {
                 if (confirm('정말로 이 사진을 삭제하시겠습니까?')) {
                     try {
-                        const response = await fetch(`${this.API_BASE}/delete-photo`, {
-                            method: 'DELETE',
-                            headers: {
-                                'Content-Type': 'application/json',
-                            },
-                            body: JSON.stringify({ id })
-                        });
+                        // 사진 정보 가져오기
+                        const { data: photo, error: fetchError } = await supabase
+                            .from('photos')
+                            .select('filename')
+                            .eq('id', id)
+                            .single();
+                        if (fetchError) throw fetchError;
 
-                        if (response.ok) {
-                            this.photos = this.photos.filter(photo => photo.id !== id);
-                            this.renderGallery();
-                            this.updateStats();
-                            this.showNotification('사진이 삭제되었습니다', 'success');
-                        } else {
-                            throw new Error('삭제 실패');
-                        }
+                        // Storage에서 파일 삭제
+                        const { error: storageError } = await supabase.storage
+                            .from('photos')
+                            .remove([photo.filename]);
+                        if (storageError) throw storageError;
+
+                        // DB에서 레코드 삭제
+                        const { error: dbError } = await supabase
+                            .from('photos')
+                            .delete()
+                            .eq('id', id);
+                        if (dbError) throw dbError;
+
+                        this.photos = this.photos.filter(photo => photo.id !== id);
+                        this.renderGallery();
+                        this.updateStats();
+                        this.showNotification('사진이 삭제되었습니다', 'success');
                     } catch (error) {
                         console.error('삭제 오류:', error);
                         this.showNotification('사진 삭제 중 오류가 발생했습니다', 'error');
